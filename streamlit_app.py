@@ -147,15 +147,40 @@ def load_visualization_images():
 # =========================================================================
 def make_prediction(model, scaler, features, input_data, is_scaled):
     """Make prediction with given model"""
-    input_df = pd.DataFrame([input_data], columns=features)
+    # Debug: Print untuk troubleshooting
+    print(f"Features expected: {len(features)} -> {features}")
+    print(f"Input data received: {len(input_data)} -> {input_data}")
     
-    if is_scaled:
-        input_scaled = scaler.transform(input_df)
-        prediction = model.predict(input_scaled)[0]
-    else:
-        prediction = model.predict(input_df)[0]
+    # Validasi input
+    if len(input_data) != len(features):
+        st.error(f"❌ Input mismatch: Expected {len(features)} features, got {len(input_data)}")
+        st.write("Expected features:", features)
+        st.write("Input data:", input_data)
+        return None
     
-    return prediction
+    # Create DataFrame
+    try:
+        input_df = pd.DataFrame([input_data], columns=features)
+        st.write("✅ Input DataFrame created successfully:")
+        st.dataframe(input_df)
+        
+        if is_scaled:
+            input_scaled = scaler.transform(input_df)
+            prediction = model.predict(input_scaled)[0]
+            st.write("✅ Used scaled features for prediction")
+        else:
+            prediction = model.predict(input_df)[0]
+            st.write("✅ Used unscaled features for prediction")
+        
+        return prediction
+    
+    except Exception as e:
+        st.error(f"❌ Error in prediction: {str(e)}")
+        st.write("Debug info:")
+        st.write(f"Features: {features}")
+        st.write(f"Input data: {input_data}")
+        st.write(f"Data types: {[type(x) for x in input_data]}")
+        return None
 
 def get_delivery_category(prediction):
     """Categorize delivery time"""
@@ -186,6 +211,15 @@ def main():
     # Load artifacts
     model, scaler, metadata, correlations, dataset_stats, results_df = load_model_artifacts()
     images = load_visualization_images()
+    
+    # Debug section (dapat diaktifkan jika perlu)
+    if st.sidebar.checkbox("🔧 Show Debug Info"):
+        st.sidebar.markdown("### 🔍 Debug Information")
+        st.sidebar.write(f"**Features ({len(metadata['features'])}):**")
+        for i, feature in enumerate(metadata['features']):
+            st.sidebar.write(f"{i+1}. {feature}")
+        st.sidebar.write(f"**Scaled Model:** {metadata['scaled_data']}")
+        st.sidebar.write(f"**Model Type:** {metadata['model_name']}")
     
     # Header
     st.markdown('<div class="main-header">🍕 Pizza Delivery Time Prediction</div>', unsafe_allow_html=True)
@@ -310,78 +344,88 @@ def main():
         
         with col2:
             if st.button("🚀 Predict Delivery Time", type="primary", use_container_width=True):
-                # Prepare input data
+                # Prepare input data - PASTIKAN URUTAN SESUAI FEATURES
                 input_data = [pizza_type, distance, is_weekend, topping_density, 
                              order_month, pizza_complexity, traffic_impact, order_hour]
+                
+                # Debug: Show features and input mapping
+                st.write("🔍 **Debug Information:**")
+                feature_mapping = list(zip(metadata['features'], input_data))
+                for feature, value in feature_mapping:
+                    st.write(f"• {feature}: {value}")
                 
                 # Make prediction
                 prediction = make_prediction(
                     model, scaler, metadata['features'], input_data, metadata['scaled_data']
                 )
                 
-                # Display prediction
-                category, status = get_delivery_category(prediction)
-                
-                st.markdown(f"""
-                <div class="prediction-box">
-                    <h2>🕐 Predicted Delivery Time</h2>
-                    <h1>{prediction:.1f} minutes</h1>
-                    <h3>{category}</h3>
-                    <p>Confidence: {metadata['performance']['r2_score']:.1%} R² Score</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Additional insights
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    if prediction <= 20:
-                        st.success("🚀 Excellent! Fast delivery expected")
-                    elif prediction <= 30:
-                        st.info("⏱️ Normal delivery timeframe")
-                    else:
-                        st.warning("🐌 Longer delivery time expected")
-                
-                with col2:
-                    # Calculate percentile based on dataset stats
-                    if prediction <= dataset_stats['target_mean'] - dataset_stats['target_std']:
-                        percentile = "Top 15% (Very Fast)"
-                    elif prediction <= dataset_stats['target_mean']:
-                        percentile = "Top 50% (Faster than average)"
-                    elif prediction <= dataset_stats['target_mean'] + dataset_stats['target_std']:
-                        percentile = "Bottom 50% (Slower than average)"
-                    else:
-                        percentile = "Bottom 15% (Very Slow)"
+                # Only proceed if prediction is successful
+                if prediction is not None:
+                    # Display prediction
+                    category, status = get_delivery_category(prediction)
                     
-                    st.info(f"📊 Performance: {percentile}")
-                
-                with col3:
-                    diff = prediction - dataset_stats['target_mean']
-                    if diff > 0:
-                        st.metric("vs Average", f"+{diff:.1f} min", delta=f"{diff:.1f}")
-                    else:
-                        st.metric("vs Average", f"{diff:.1f} min", delta=f"{diff:.1f}")
-                
-                # Feature impact analysis
-                st.markdown("#### 🔍 Key Factors Analysis")
-                
-                impact_factors = []
-                if distance > 8:
-                    impact_factors.append("🔴 High distance increases delivery time")
-                if traffic_impact > 7:
-                    impact_factors.append("🔴 Heavy traffic will delay delivery")
-                if pizza_complexity > 7:
-                    impact_factors.append("🟡 Complex pizza takes longer to prepare")
-                if is_weekend:
-                    impact_factors.append("🟡 Weekend orders may take slightly longer")
-                if order_hour in [11, 12, 13, 18, 19, 20]:
-                    impact_factors.append("🟡 Peak hour - higher demand")
-                
-                if not impact_factors:
-                    impact_factors.append("🟢 Optimal conditions for fast delivery!")
-                
-                for factor in impact_factors:
-                    st.markdown(f"• {factor}")
+                    st.markdown(f"""
+                    <div class="prediction-box">
+                        <h2>🕐 Predicted Delivery Time</h2>
+                        <h1>{prediction:.1f} minutes</h1>
+                        <h3>{category}</h3>
+                        <p>Confidence: {metadata['performance']['r2_score']:.1%} R² Score</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Additional insights
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if prediction <= 20:
+                            st.success("🚀 Excellent! Fast delivery expected")
+                        elif prediction <= 30:
+                            st.info("⏱️ Normal delivery timeframe")
+                        else:
+                            st.warning("🐌 Longer delivery time expected")
+                    
+                    with col2:
+                        # Calculate percentile based on dataset stats
+                        if prediction <= dataset_stats['target_mean'] - dataset_stats['target_std']:
+                            percentile = "Top 15% (Very Fast)"
+                        elif prediction <= dataset_stats['target_mean']:
+                            percentile = "Top 50% (Faster than average)"
+                        elif prediction <= dataset_stats['target_mean'] + dataset_stats['target_std']:
+                            percentile = "Bottom 50% (Slower than average)"
+                        else:
+                            percentile = "Bottom 15% (Very Slow)"
+                        
+                        st.info(f"📊 Performance: {percentile}")
+                    
+                    with col3:
+                        diff = prediction - dataset_stats['target_mean']
+                        if diff > 0:
+                            st.metric("vs Average", f"+{diff:.1f} min", delta=f"{diff:.1f}")
+                        else:
+                            st.metric("vs Average", f"{diff:.1f} min", delta=f"{diff:.1f}")
+                    
+                    # Feature impact analysis
+                    st.markdown("#### 🔍 Key Factors Analysis")
+                    
+                    impact_factors = []
+                    if distance > 8:
+                        impact_factors.append("🔴 High distance increases delivery time")
+                    if traffic_impact > 7:
+                        impact_factors.append("🔴 Heavy traffic will delay delivery")
+                    if pizza_complexity > 7:
+                        impact_factors.append("🟡 Complex pizza takes longer to prepare")
+                    if is_weekend:
+                        impact_factors.append("🟡 Weekend orders may take slightly longer")
+                    if order_hour in [11, 12, 13, 18, 19, 20]:
+                        impact_factors.append("🟡 Peak hour - higher demand")
+                    
+                    if not impact_factors:
+                        impact_factors.append("🟢 Optimal conditions for fast delivery!")
+                    
+                    for factor in impact_factors:
+                        st.markdown(f"• {factor}")
+                else:
+                    st.error("❌ Prediction failed. Please check the debug information above.")
     
     # =====================================================================
     # TAB 2: MODEL PERFORMANCE
