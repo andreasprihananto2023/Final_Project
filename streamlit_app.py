@@ -192,15 +192,50 @@ def get_delivery_category(prediction):
         return "🐌 Slow Delivery", "warning"
 
 def get_feature_ranges():
-    """Get realistic ranges for input features"""
+    """Get realistic ranges for input features based on original categories"""
     return {
-        'Pizza Type': (1, 10),
-        'Distance (km)': (0.5, 15.0),
+        'Pizza Type': {
+            'options': list(range(1, 12)),
+            'labels': {
+                1: 'Vegan',
+                2: 'Non-Vegan', 
+                3: 'Cheese Burst',
+                4: 'Gluten-Free',
+                5: 'Stuffed Crust',
+                6: 'Thin Crust',
+                7: 'Deep Fish',
+                8: 'Thai Chicken',
+                9: 'Sicilian',
+                10: 'BBQ Chicken',
+                11: 'Margarita'
+            }
+        },
+        'Distance (km)': {
+            'min': 2.0,
+            'max': 6.0,
+            'step': 0.5,
+            'default': 4.0
+        },
         'Is Weekend': [0, 1],
-        'Topping Density': (1.0, 10.0),
+        'Topping Density': {
+            'min': 0.3,
+            'max': 1.3,
+            'step': 0.1,
+            'default': 0.8
+        },
         'Order Month': list(range(1, 13)),
-        'Pizza Complexity': (1.0, 10.0),
-        'Traffic Impact': (1.0, 10.0),
+        'Pizza Complexity': {
+            'min': 1,
+            'max': 20,
+            'step': 1,
+            'default': 10
+        },
+        'Traffic Impact': {
+            'min': 1.0,
+            'max': 10.0,
+            'step': 0.5,
+            'default': 5.0
+        },
         'Order Hour': list(range(0, 24))
     }
 
@@ -259,6 +294,9 @@ def main():
         # Display which features are used
         st.info(f"ℹ️ This model uses the top 6 most correlated features: {', '.join(metadata['features'])}")
         
+        # Get feature ranges
+        feature_ranges = get_feature_ranges()
+        
         # Dynamic input form berdasarkan features yang ada di model
         input_values = {}
         
@@ -272,68 +310,82 @@ def main():
         with col1:
             for feature in features_col1:
                 if feature == 'Pizza Type':
-                    input_values[feature] = st.selectbox(
+                    pizza_types = feature_ranges['Pizza Type']
+                    selected_type = st.selectbox(
                         "🍕 Pizza Type",
-                        options=list(range(1, 11)),
-                        index=3,
-                        help="Type of pizza (1-10 scale)"
+                        options=pizza_types['options'],
+                        index=3,  # Default to Gluten-Free
+                        format_func=lambda x: f"{x}. {pizza_types['labels'][x]}",
+                        help="Select the type of pizza"
                     )
+                    input_values[feature] = selected_type
+                    
                 elif feature == 'Distance (km)':
+                    distance_config = feature_ranges['Distance (km)']
                     input_values[feature] = st.slider(
                         "📍 Distance (km)",
-                        min_value=0.5,
-                        max_value=15.0,
-                        value=5.0,
-                        step=0.5,
-                        help="Distance from restaurant to delivery location"
+                        min_value=distance_config['min'],
+                        max_value=distance_config['max'],
+                        value=distance_config['default'],
+                        step=distance_config['step'],
+                        help="Distance from restaurant to delivery location (2-6 km)"
                     )
+                    
                 elif feature == 'Is Weekend':
                     input_values[feature] = st.selectbox(
                         "📅 Is Weekend?", 
-                        [0, 1], 
+                        feature_ranges['Is Weekend'], 
                         format_func=lambda x: "🟢 Yes" if x else "🔴 No",
                         help="Weekend orders may take longer"
                     )
+                    
                 elif feature == 'Topping Density':
+                    topping_config = feature_ranges['Topping Density']
                     input_values[feature] = st.slider(
                         "🧀 Topping Density",
-                        min_value=1.0,
-                        max_value=10.0,
-                        value=5.0,
-                        step=0.5,
-                        help="How dense the toppings are (1-10 scale)"
+                        min_value=topping_config['min'],
+                        max_value=topping_config['max'],
+                        value=topping_config['default'],
+                        step=topping_config['step'],
+                        help="Density of toppings on pizza (0.3-1.3 scale)"
                     )
+                    
                 elif feature == 'Order Month':
                     input_values[feature] = st.selectbox(
                         "📆 Order Month",
-                        options=list(range(1, 13)),
-                        index=5,
+                        options=feature_ranges['Order Month'],
+                        index=5,  # Default to June
                         format_func=lambda x: f"{x} - {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][x-1]}",
                         help="Month of the year"
                     )
+                    
                 elif feature == 'Pizza Complexity':
+                    complexity_config = feature_ranges['Pizza Complexity']
                     input_values[feature] = st.slider(
                         "🎛️ Pizza Complexity",
-                        min_value=1.0,
-                        max_value=10.0,
-                        value=5.0,
-                        step=0.5,
-                        help="How complex the pizza is to prepare (1-10 scale)"
+                        min_value=complexity_config['min'],
+                        max_value=complexity_config['max'],
+                        value=complexity_config['default'],
+                        step=complexity_config['step'],
+                        help="How complex the pizza is to prepare (1-20 scale)"
                     )
+                    
                 elif feature == 'Traffic Impact':
+                    traffic_config = feature_ranges['Traffic Impact']
                     input_values[feature] = st.slider(
                         "🚦 Traffic Impact",
-                        min_value=1.0,
-                        max_value=10.0,
-                        value=5.0,
-                        step=0.5,
+                        min_value=traffic_config['min'],
+                        max_value=traffic_config['max'],
+                        value=traffic_config['default'],
+                        step=traffic_config['step'],
                         help="Current traffic conditions (1-10 scale)"
                     )
+                    
                 elif feature == 'Order Hour':
                     input_values[feature] = st.selectbox(
                         "🕐 Order Hour",
-                        options=list(range(0, 24)),
-                        index=12,
+                        options=feature_ranges['Order Hour'],
+                        index=12,  # Default to 12:00
                         format_func=lambda x: f"{x:02d}:00 ({['Midnight','Night','Night','Night','Night','Night','Morning','Morning','Morning','Morning','Morning','Morning','Noon','Afternoon','Afternoon','Afternoon','Afternoon','Afternoon','Evening','Evening','Evening','Evening','Evening','Night'][x]})",
                         help="Hour of the day (24-hour format)"
                     )
@@ -341,70 +393,92 @@ def main():
         with col2:
             for feature in features_col2:
                 if feature == 'Pizza Type':
-                    input_values[feature] = st.selectbox(
+                    pizza_types = feature_ranges['Pizza Type']
+                    selected_type = st.selectbox(
                         "🍕 Pizza Type",
-                        options=list(range(1, 11)),
-                        index=3,
-                        help="Type of pizza (1-10 scale)"
+                        options=pizza_types['options'],
+                        index=3,  # Default to Gluten-Free
+                        format_func=lambda x: f"{x}. {pizza_types['labels'][x]}",
+                        help="Select the type of pizza",
+                        key="pizza_type_col2"
                     )
+                    input_values[feature] = selected_type
+                    
                 elif feature == 'Distance (km)':
+                    distance_config = feature_ranges['Distance (km)']
                     input_values[feature] = st.slider(
                         "📍 Distance (km)",
-                        min_value=0.5,
-                        max_value=15.0,
-                        value=5.0,
-                        step=0.5,
-                        help="Distance from restaurant to delivery location"
+                        min_value=distance_config['min'],
+                        max_value=distance_config['max'],
+                        value=distance_config['default'],
+                        step=distance_config['step'],
+                        help="Distance from restaurant to delivery location (2-6 km)",
+                        key="distance_col2"
                     )
+                    
                 elif feature == 'Is Weekend':
                     input_values[feature] = st.selectbox(
                         "📅 Is Weekend?", 
-                        [0, 1], 
+                        feature_ranges['Is Weekend'], 
                         format_func=lambda x: "🟢 Yes" if x else "🔴 No",
-                        help="Weekend orders may take longer"
+                        help="Weekend orders may take longer",
+                        key="weekend_col2"
                     )
+                    
                 elif feature == 'Topping Density':
+                    topping_config = feature_ranges['Topping Density']
                     input_values[feature] = st.slider(
                         "🧀 Topping Density",
-                        min_value=1.0,
-                        max_value=10.0,
-                        value=5.0,
-                        step=0.5,
-                        help="How dense the toppings are (1-10 scale)"
+                        min_value=topping_config['min'],
+                        max_value=topping_config['max'],
+                        value=topping_config['default'],
+                        step=topping_config['step'],
+                        help="Density of toppings on pizza (0.3-1.3 scale)",
+                        key="topping_col2"
                     )
+                    
                 elif feature == 'Order Month':
                     input_values[feature] = st.selectbox(
                         "📆 Order Month",
-                        options=list(range(1, 13)),
-                        index=5,
+                        options=feature_ranges['Order Month'],
+                        index=5,  # Default to June
                         format_func=lambda x: f"{x} - {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][x-1]}",
-                        help="Month of the year"
+                        help="Month of the year",
+                        key="month_col2"
                     )
+                    
                 elif feature == 'Pizza Complexity':
+                    complexity_config = feature_ranges['Pizza Complexity']
                     input_values[feature] = st.slider(
                         "🎛️ Pizza Complexity",
-                        min_value=1.0,
-                        max_value=10.0,
-                        value=5.0,
-                        step=0.5,
-                        help="How complex the pizza is to prepare (1-10 scale)"
+                        min_value=complexity_config['min'],
+                        max_value=complexity_config['max'],
+                        value=complexity_config['default'],
+                        step=complexity_config['step'],
+                        help="How complex the pizza is to prepare (1-20 scale)",
+                        key="complexity_col2"
                     )
+                    
                 elif feature == 'Traffic Impact':
+                    traffic_config = feature_ranges['Traffic Impact']
                     input_values[feature] = st.slider(
                         "🚦 Traffic Impact",
-                        min_value=1.0,
-                        max_value=10.0,
-                        value=5.0,
-                        step=0.5,
-                        help="Current traffic conditions (1-10 scale)"
+                        min_value=traffic_config['min'],
+                        max_value=traffic_config['max'],
+                        value=traffic_config['default'],
+                        step=traffic_config['step'],
+                        help="Current traffic conditions (1-10 scale)",
+                        key="traffic_col2"
                     )
+                    
                 elif feature == 'Order Hour':
                     input_values[feature] = st.selectbox(
                         "🕐 Order Hour",
-                        options=list(range(0, 24)),
-                        index=12,
+                        options=feature_ranges['Order Hour'],
+                        index=12,  # Default to 12:00
                         format_func=lambda x: f"{x:02d}:00 ({['Midnight','Night','Night','Night','Night','Night','Morning','Morning','Morning','Morning','Morning','Morning','Noon','Afternoon','Afternoon','Afternoon','Afternoon','Afternoon','Evening','Evening','Evening','Evening','Evening','Night'][x]})",
-                        help="Hour of the day (24-hour format)"
+                        help="Hour of the day (24-hour format)",
+                        key="hour_col2"
                     )
         
         # Prediction button and results
