@@ -220,7 +220,7 @@ def get_feature_ranges():
         'Topping Density': {
             'min': 0.3,
             'max': 1.3,
-            'step': 0.1,
+            'step': 0.05,
             'default': 0.8
         },
         'Order Month': list(range(1, 13)),
